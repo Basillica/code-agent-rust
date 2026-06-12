@@ -58,6 +58,7 @@ impl Tool for BashTool {
 
         // Wrap the channel thread bounds with a precise timeout race mechanism
         // let timeout_duration = Duration::from_secs(45);
+        let _timeout_duration = Duration::from_secs(45);
         let pid = child.id();
 
         println!(

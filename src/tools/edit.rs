@@ -1,13 +1,13 @@
-use crate::orchestrator::models::Hunk;
-use crate::orchestrator::patch::PatchEngine;
-use crate::orchestrator::transaction::WorkspaceTransaction;
+// use crate::orchestrator::models::Hunk;
+// use crate::orchestrator::patch::PatchEngine;
+// use crate::orchestrator::transaction::WorkspaceTransaction;
 use crate::tools::Tool;
 use crate::tools::utils::{append_to_codebase_memory_log, verify_workspace_health};
 use async_trait::async_trait;
 use serde_json::Value;
 use std::fs::{self};
 use std::path::Path;
-use std::path::PathBuf;
+// use std::path::PathBuf;
 
 pub struct SurgicalEditTool;
 
@@ -31,37 +31,35 @@ impl Tool for SurgicalEditTool {
         })
     }
 
+    // async fn execute(&self, args: &Value) -> Result<String, String> {
+    //     let path_str = args["path"].as_str().ok_or("Missing field 'path'")?;
+    //     let target_path = PathBuf::from(path_str);
+
+    //     let hunk = Hunk {
+    //         search_block: args["search"].as_str().unwrap_or_default().to_string(),
+    //         replace_block: args["replace"].as_str().unwrap_or_default().to_string(),
+    //     };
+
+    //     // --- 🟢 APPLICATION OF MODULE: transaction.rs ---
+    //     // Snapshot the file to memory before writing bytes to protect against workspace corruption
+    //     let mut tx = WorkspaceTransaction::new();
+    //     tx.stage_file(&target_path)?;
+
+    //     // --- 🟢 APPLICATION OF MODULE: patch.rs ---
+    //     // Perform line-aware sliding-window matches instead of a basic flat string substitution
+    //     match PatchEngine::apply_surgical_patch(&target_path, &[hunk]) {
+    //         Ok(_) => {
+    //             tx.commit(); // Keep modifications safe on disk
+    //             Ok(format!("Surgical edit applied cleanly to `{}`", path_str))
+    //         }
+    //         Err(e) => {
+    //             tx.rollback()?; // Instant zero-pollution restoration if string anchors mismatch!
+    //             Err(format!("Patch execution rejected: {}", e))
+    //         }
+    //     }
+    // }
+
     async fn execute(&self, args: &Value) -> Result<String, String> {
-        let path_str = args["path"].as_str().ok_or("Missing field 'path'")?;
-        let target_path = PathBuf::from(path_str);
-
-        let hunk = Hunk {
-            search_block: args["search"].as_str().unwrap_or_default().to_string(),
-            replace_block: args["replace"].as_str().unwrap_or_default().to_string(),
-        };
-
-        // --- 🟢 APPLICATION OF MODULE: transaction.rs ---
-        // Snapshot the file to memory before writing bytes to protect against workspace corruption
-        let mut tx = WorkspaceTransaction::new();
-        tx.stage_file(&target_path)?;
-
-        // --- 🟢 APPLICATION OF MODULE: patch.rs ---
-        // Perform line-aware sliding-window matches instead of a basic flat string substitution
-        match PatchEngine::apply_surgical_patch(&target_path, &[hunk]) {
-            Ok(_) => {
-                tx.commit(); // Keep modifications safe on disk
-                Ok(format!("Surgical edit applied cleanly to `{}`", path_str))
-            }
-            Err(e) => {
-                tx.rollback()?; // Instant zero-pollution restoration if string anchors mismatch!
-                Err(format!("Patch execution rejected: {}", e))
-            }
-        }
-    }
-}
-
-impl SurgicalEditTool {
-    async fn executer(&self, args: &Value) -> Result<String, String> {
         let path_str = args["path"].as_str().ok_or("Missing parameter 'path'")?;
         let search = args["search"]
             .as_str()

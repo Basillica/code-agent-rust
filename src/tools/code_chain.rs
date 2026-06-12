@@ -12,6 +12,14 @@ pub struct CodeGenerationChainTool {
     pub session_ctx: Arc<Mutex<SessionContext>>,
 }
 
+impl CodeGenerationChainTool {
+    pub fn new() -> Self {
+        Self {
+            session_ctx: Arc::new(Mutex::new(SessionContext::new("project_root"))),
+        }
+    }
+}
+
 #[async_trait]
 impl Tool for CodeGenerationChainTool {
     fn name(&self) -> &'static str {
