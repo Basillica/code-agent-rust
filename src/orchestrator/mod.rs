@@ -1,10 +1,13 @@
+pub mod autonomous;
+pub mod budget;
+pub mod config;
 pub mod controller;
 pub mod diagnostic;
-pub mod dispatch;
 pub mod engine;
 pub mod graph;
 pub mod models;
 pub mod patch;
+pub mod prompt;
 pub mod strategy;
 pub mod transaction;
 pub mod ui;

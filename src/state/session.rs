@@ -1,3 +1,4 @@
+use crate::terminal::shell::StatefulShell;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -13,6 +14,7 @@ pub struct SessionContext {
     pub project_root: PathBuf,
     pub project_instructions: String,
     pub auto_memory: String,
+    pub active_shell: Option<StatefulShell>,
 }
 
 impl SessionContext {
@@ -22,9 +24,19 @@ impl SessionContext {
             project_root: project_root.as_ref().to_path_buf(),
             project_instructions: String::new(),
             auto_memory: String::new(),
+            active_shell: None, // Initialize as idle
         };
         ctx.reload_workspace_context();
         ctx
+    }
+
+    /// Lazy-initializes or returns the active stateful terminal pipeline
+    pub fn get_or_init_shell(&mut self) -> Result<&mut StatefulShell, String> {
+        if self.active_shell.is_none() {
+            println!("[Context Engine] Initializing stateful background terminal context...");
+            self.active_shell = Some(StatefulShell::new()?);
+        }
+        Ok(self.active_shell.as_mut().unwrap())
     }
 
     pub fn reload_workspace_context(&mut self) {
@@ -90,5 +102,91 @@ impl SessionContext {
         self.save_persistent_memory(result);
         self.history = vec![];
         self.project_instructions = String::new();
+    }
+}
+
+pub struct ContextSqueezer;
+
+impl ContextSqueezer {
+    /// Compresses tool observations (like massive terminal outputs) by keeping
+    /// the head, tail, and extracting explicit error blocks.
+    pub fn squeeze_terminal_output(output: &str, max_lines: usize) -> String {
+        let lines: Vec<&str> = output.lines().collect();
+
+        if lines.len() <= max_lines {
+            return output.to_string();
+        }
+
+        // Search for high-value error signals typical in compilation/testing
+        let mut high_value_indices = Vec::new();
+        for (idx, line) in lines.iter().enumerate() {
+            let lower = line.to_lowercase();
+            if lower.contains("error:")
+                || lower.contains("failed")
+                || lower.contains("panic")
+                || lower.contains("compiler output:")
+            {
+                high_value_indices.push(idx);
+            }
+        }
+
+        if high_value_indices.is_empty() {
+            // No explicit errors found; perform standard head/tail truncation
+            let half = max_lines / 2;
+            let head = lines[..half].join("\n");
+            let tail = lines[lines.len() - half..].join("\n");
+            return format!(
+                "{}\n\n[... TRUNCATED {} LINES OF OMITTED LOGS ...] \n\n{}",
+                head,
+                lines.len() - max_lines,
+                tail
+            );
+        }
+
+        // If errors are present, surgically isolate rows surrounding those errors
+        let mut curated_lines = Vec::new();
+        curated_lines.push(format!(
+            "--- SURGICAL DIAGNOSTIC SNAPSHOT (Original size: {} lines) ---",
+            lines.len()
+        ));
+        curated_lines.push(lines[..std::cmp::min(5, lines.len())].join("\n")); // Keep the first few context lines
+        curated_lines.push("\n[... ISOLATING RUNTIME FAILURES ...]".to_string());
+
+        let mut last_added_idx = 0;
+        for err_idx in high_value_indices {
+            // Capture a small window of 2 lines before and 3 lines after the failure indicator
+            let start = err_idx.saturating_sub(2);
+            let end = std::cmp::min(lines.len(), err_idx + 4);
+
+            if start > last_added_idx && last_added_idx != 0 {
+                curated_lines.push("...".to_string());
+            }
+
+            for i in std::cmp::max(start, last_added_idx)..end {
+                curated_lines.push(lines[i].to_string());
+            }
+            last_added_idx = end;
+
+            if curated_lines.len() > max_lines {
+                curated_lines.push(
+                    "\n⚠️ Additional errors omitted to respect context boundaries.".to_string(),
+                );
+                break;
+            }
+        }
+
+        curated_lines.join("\n")
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_diagnostic_squeezing() {
+        let massive_output = "unrelated line 1\nunrelated line 2\nerror: expected type String, found u32\nline item 4\nline item 5";
+        let compressed = ContextSqueezer::squeeze_terminal_output(massive_output, 3);
+        assert!(compressed.contains("error: expected type String"));
     }
 }

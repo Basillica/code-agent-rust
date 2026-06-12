@@ -3,13 +3,17 @@ use crate::tools::bash::BashTool;
 use crate::tools::bootstrap::BootstrapProjectTool;
 use crate::tools::browser::WebBrowserTool;
 use crate::tools::calculator::CalculatorTool;
+use crate::tools::date_n_time::GetCurrentDateTool;
 use crate::tools::diagonistic::CheckDiagnosticsTool;
 use crate::tools::edit::SurgicalEditTool;
 use crate::tools::edit_file::EditFileTool;
+use crate::tools::execute_command::ExecuteCommandTool;
 use crate::tools::glob::GlobTool;
 use crate::tools::grep::GrepTool;
+use crate::tools::location::LocationTool;
 use crate::tools::read_file::ReadFileTool;
 use crate::tools::search::CodebaseSearchTool;
+use crate::tools::search_grep::SearchGrepTool;
 use crate::tools::shell::ShellTool;
 use crate::tools::task::DelegateSubtaskTool;
 use crate::tools::weather::WeatherTool;
@@ -41,6 +45,10 @@ impl ToolRegistry {
         registry.register(CalculatorTool::new());
         registry.register(WeatherTool);
         registry.register(BootstrapProjectTool::new(project_root.to_path_buf()));
+        registry.register(ExecuteCommandTool::new(project_root.to_path_buf()));
+        registry.register(SearchGrepTool);
+        registry.register(GetCurrentDateTool);
+        registry.register(LocationTool);
         registry
     }
 

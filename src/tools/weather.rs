@@ -7,11 +7,11 @@ pub struct WeatherTool;
 #[async_trait]
 impl Tool for WeatherTool {
     fn name(&self) -> &'static str {
-        "get_current_weather"
+        "get_weather"
     }
 
     fn description(&self) -> &'static str {
-        "Fetches real-time weather details and current conditions for a specified geographical location or city."
+        "Fetches real-time weather details and current conditions. If no location is provided, it automatically infers the current local area via the system's public IP address."
     }
 
     fn input_schema(&self) -> Value {
@@ -20,28 +20,25 @@ impl Tool for WeatherTool {
             "properties": {
                 "location": {
                     "type": "string",
-                    "description": "The city name or target location (e.g., 'Munich', 'Paris,FR')"
+                    "description": "Optional city name or target destination (e.g., 'Munich', 'Paris,FR'). Leave blank or omit to look up the local system weather."
                 }
-            },
-            "required": ["location"]
+            }
         })
     }
 
     async fn execute(&self, args: &Value) -> Result<String, String> {
-        // 1. Extract and validate parameters matching your input_schema layout
-        let location = args["location"]
-            .as_str()
-            .ok_or("Missing parameter 'location'")?;
+        // 1. Extract optional parameter safely without throwing an error if missing
+        let location = args.get("location").and_then(|l| l.as_str()).unwrap_or("");
 
-        if location.trim().is_empty() {
-            return Err("Error: Parameter 'location' cannot be empty.".to_string());
-        }
+        // 2. Build target URL depending on whether a location was specified
+        let url = if location.trim().is_empty() {
+            "https://wttr.in/?format=3".to_string()
+        } else {
+            let encoded_location = urlencoding::encode(location);
+            format!("https://wttr.in/{}?format=3", encoded_location)
+        };
 
-        // 2. URL-encode the location to handle multi-word city names gracefully (e.g., "New York")
-        let encoded_location = urlencoding::encode(location);
-        let url = format!("https://wttr.in/{}?format=3", encoded_location);
-
-        // 3. Dispatch the outward HTTP request using reqwest with standard safety timeouts
+        // 3. Dispatch the outward HTTP request
         let client = reqwest::Client::builder()
             .timeout(std::time::Duration::from_secs(5))
             .build()
@@ -55,7 +52,6 @@ impl Tool for WeatherTool {
                         .await
                         .map_err(|e| format!("Failed to read upstream data text stream: {}", e))?;
 
-                    // Return the clean textual weather forecast format (e.g., "Munich: 🌤️ +14°C")
                     Ok(format!(
                         "[Weather Observation Result]: {}",
                         weather_report.trim()

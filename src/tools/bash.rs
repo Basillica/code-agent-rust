@@ -46,7 +46,7 @@ impl Tool for BashTool {
         };
 
         // Spawn the shell process wrapper
-        let mut child = match Command::new(shell)
+        let child = match Command::new(shell)
             .args(&shell_args)
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
@@ -57,7 +57,7 @@ impl Tool for BashTool {
         };
 
         // Wrap the channel thread bounds with a precise timeout race mechanism
-        let timeout_duration = Duration::from_secs(45);
+        // let timeout_duration = Duration::from_secs(45);
         let pid = child.id();
 
         println!(

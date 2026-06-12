@@ -1,9 +1,10 @@
+use clap::{Parser, ValueEnum};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::io;
 use std::io::Write;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, ValueEnum, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum PermissionMode {
     Plan,
@@ -19,20 +20,6 @@ pub enum GateResult {
     Allowed,
     Blocked,
     RequiresUserApproval,
-}
-
-impl PermissionMode {
-    pub fn from_str(mode: &str) -> Self {
-        match mode.to_lowercase().as_str() {
-            "plan" => PermissionMode::Plan,
-            "acceptedits" => PermissionMode::AcceptEdits,
-            "auto" => PermissionMode::Auto,
-            "dontask" => PermissionMode::DontAsk,
-            "bypasspermissions" => PermissionMode::BypassPermissions,
-            "bubble" => PermissionMode::Bubble,
-            _ => PermissionMode::DefaultMode,
-        }
-    }
 }
 
 pub struct PermissionGate {

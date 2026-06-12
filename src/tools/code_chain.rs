@@ -1,3 +1,4 @@
+use crate::action::permissions::PermissionMode;
 use crate::orchestrator::models::RefactorPlan;
 use crate::tools::Tool;
 use crate::{orchestrator::engine::RefactorOrchestrator, state::session::SessionContext};
@@ -8,7 +9,7 @@ use tokio::sync::Mutex;
 
 pub struct CodeGenerationChainTool {
     // Shared ref thread state matching typical engine layout setups
-    session_ctx: Arc<Mutex<SessionContext>>,
+    pub session_ctx: Arc<Mutex<SessionContext>>,
 }
 
 #[async_trait]
@@ -53,7 +54,10 @@ impl Tool for CodeGenerationChainTool {
         let mut lock = self.session_ctx.lock().await;
         let mut orchestrator = RefactorOrchestrator::new(&mut *lock);
 
-        match orchestrator.execute_chain(plan, verify_cmd).await {
+        // NOTE: Because the high-level tool invocation itself is already audited and approved
+        // by the supervisor query_loop, we pass PermissionMode::Auto here to execute the internal
+        // search-and-replace pipeline seamlessly without nested double-prompting.
+        match orchestrator.execute_chain(plan, verify_cmd, PermissionMode::Auto).await {
             Ok(_) => Ok(json!({ "status": "success", "message": "All refactoring operations completed cleanly." }).to_string()),
             Err(e) => Err(format!("Refactoring sequence failed: {}", e)),
         }
