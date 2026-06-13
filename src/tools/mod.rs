@@ -15,7 +15,6 @@ pub mod execute_command;
 pub mod glob;
 pub mod grep;
 pub mod location;
-pub mod market;
 pub mod read_file;
 pub mod registry;
 pub mod search;

@@ -69,6 +69,11 @@ impl TokenBudgetGuardrail {
         Ok(())
     }
 
+    pub fn reset_token(&mut self) {
+        self.cumulative_input_tokens = 0;
+        self.cumulative_output_tokens = 0;
+    }
+
     /// Prints a summary status report to the terminal interface
     pub fn print_telemetry_report(&self) {
         println!(

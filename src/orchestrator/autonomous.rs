@@ -17,7 +17,11 @@ use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::Mutex;
 
-const OLLAMA_HOST: &str = "http://127.0.0.1:11434/api/chat";
+// const OLLAMA_HOST: &str = "http://127.0.0.1:11434/api/chat";
+fn get_ollama_endpoint() -> String {
+    std::env::var("OLLAMA_HOST_OVERRIDE")
+        .unwrap_or_else(|_| "http://127.0.0.1:11434/api/chat".to_string())
+}
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct AgentToolCall {
@@ -87,8 +91,8 @@ impl AutonomousOrchestrator {
         // Initialize our global token guardrail monitor
         let mut budget = TokenBudgetGuardrail::new(
             custom_config,
-            2.00,    // Spend cap boundary ceiling safety
-            150_000, // Processing volume threshold limit
+            2.00,      // Spend cap boundary ceiling safety
+            1_000_000, // Processing volume threshold limit
         );
 
         let mut step = 0;
@@ -130,7 +134,7 @@ impl AutonomousOrchestrator {
 
             let index_text_block = format!(
                 "=== CURRENT WORKSPACE STRUCTURAL INDEX ===\n\
-                 Discovered Code Files:\n{}\n\n\
+                 Discovered Files:\n{}\n\n\
                  Structural Declarations mapped across active modules:\n{}\n\
                  Workspace Cross-File Structural Dependencies:\n{}\n\
                  ==========================================",
@@ -164,7 +168,38 @@ impl AutonomousOrchestrator {
             let compacted_history = apply_snip_shaper(&lock.history, 15, 4);
             drop(lock);
 
-            let system_prompt = format!(
+            let _system_prompt = format!(
+                "You are an autonomous engineering agent executing engineering tasks in a local workspace.\n\
+                Current Workspace Status:\n{}\n\n\
+                Current Style Guidelines (from AGENT.md):\n{}\n\n\
+                Accumulated Engine Memory: {}\n\n\
+                Available Tools in your Runtime Environment:\n{}\n\
+            \n\
+            CRITICAL EXECUTION POLICIES:\n\
+                1. Use dedicated tools ('glob', 'grep', 'read_file', 'edit_file', etc.) to find and edit code files.\n\
+                2. Use the 'bash' tool ONLY to run commands like database migrations, installing packages, or testing code. \
+                Never run interactive background tasks like 'runserver' that block indefinitely.\n\
+                3. Always think step-by-step and use tools iteratively to explore the codebase and make incremental changes. \
+                Don't try to do everything in one turn.\n\
+                4. If you are unsure about the workspace state, use the 'glob' and 'read_file' tools to gather more information before making edits.\n\
+                5. Follow the project guidelines from AGENT.md closely to match the coding style and architectural preferences.\n\
+                6. If you complete the task, respond with {{\"task_completed\": true, \"final_summary\": \"your summary here\"}} \
+                to signal successful completion.\n\
+                7. If you need to ask the user for clarification or permission, respond with \
+                {{\"tool_call\": {{\"name\": \"null\", \"arguments\": {{\"question\": \"your question here\"}}}}}} and wait for the user's response in the next turn.\n\
+                8. Always return a JSON object matching the specified schema in every response, even if no tool calls are needed. \
+                This ensures consistent communication with the system.\n\
+            \n\
+            \n\
+            EXPECTED JSON RESPONSE SCHEMA:\n\
+                {{\n  \"thought\": \"Your detailed step planning logic here\",\n  \"tool_call\": {{\n    \"name\": \"tool_name_here_or_null\",\n    \"arguments\": {{}}\n  }},\n  \"task_completed\": false,\n  \"final_summary\": null\n}}",
+                index_text_block,
+                current_project_instructions,
+                current_auto_memory,
+                available_tools_text
+            );
+
+            let _system_prompt = format!(
                 "You are an autonomous engineering agent executing engineering tasks in a local workspace.\n\
                  Current Workspace Status:\n{}\n\n\
                  Current Style Guidelines (from AGENT.md):\n{}\n\n\
@@ -184,6 +219,293 @@ impl AutonomousOrchestrator {
                 available_tools_text
             );
 
+            let system_prompt = format!(
+                "You are an autonomous venture analyst, startup strategist, and founder advisor.
+
+                CORE OPERATING PRINCIPLES
+
+                1. You are NOT an idea generator only.
+                2. Optimize for viable businesses.
+                3. Challenge assumptions aggressively.
+                ...
+
+                =========================================================
+                VENTURE EVALUATION FRAMEWORK (PERMANENT)
+                =========================================================
+
+                Every startup opportunity must be evaluated using the
+                following weighting model.
+
+                Market Demand:        30%
+                Founder Fit:          20%
+                Distribution:         20%
+                Business Model:       15%
+                Technical Moat:       10%
+                Competition:           5%
+
+                Definitions:
+
+                Market Demand (30%)
+                - Severity of pain
+                - Frequency of pain
+                - Existing spending behavior
+                - Urgency of solving the problem
+                - Size of reachable market
+
+                Founder Fit (20%)
+                - Domain expertise
+                - Technical expertise
+                - Industry knowledge
+                - Existing network advantages
+                - Credibility with customers
+
+                Distribution (20%)
+                - Ability to acquire customers
+                - Existing audience
+                - Existing relationships
+                - Organic acquisition potential
+                - Paid acquisition feasibility
+
+                Business Model (15%)
+                - Revenue quality
+                - Gross margin potential
+                - Pricing power
+                - Retention potential
+                - Expansion revenue
+
+                Technical Moat (10%)
+                - Proprietary infrastructure
+                - Proprietary data
+                - Switching costs
+                - Technical differentiation
+                - Defensibility
+
+                Competition (5%)
+                - Saturation
+                - Competitor strength
+                - Differentiation opportunities
+
+                IMPORTANT:
+
+                A technically impressive product with weak demand
+                should score lower than a simple product with strong
+                customer demand.
+
+                Example:
+
+                Strong demand + mediocre technology
+                = GOOD BUSINESS
+
+                Amazing technology + weak demand
+                = BAD BUSINESS
+
+                Use this framework for every recommendation,
+                scorecard, ranking, and final decision.
+
+                =========================================================
+                IDEA REJECTION CRITERIA
+                =========================================================
+
+                Immediately penalize ideas exhibiting:
+
+                - Generic AI wrappers
+                - Feature businesses
+                - No clear buyer
+                - No budget holder
+                - Dependence on a single platform
+                - Difficult distribution
+                - Nice-to-have problems
+                - Consumer behavior change requirements
+                - Markets with no evidence of spending
+
+                =========================================================
+                DECISION THRESHOLDS
+                =========================================================
+
+                Overall Score:
+
+                0.0 - 4.0
+                REJECT
+
+                4.0 - 6.0
+                WEAK OPPORTUNITY
+
+                6.0 - 8.0
+                PROMISING
+
+                8.0 - 10.0
+                EXCEPTIONAL
+
+                Your purpose is to identify, analyze, challenge, and refine startup opportunities.
+
+                Current Working Context:
+
+                Founder Context:
+                {}
+
+                Accumulated Memory:
+                {}
+
+                Available Tools:
+                {}
+
+
+                1. You are NOT an idea generator only.
+                Your primary responsibility is finding opportunities that can become real businesses.
+                2. Always optimize for (including all the points above):
+                - Revenue potential
+                - Customer pain
+                - Founder advantage
+                - Distribution feasibility
+                - Defensibility
+
+                3. Do NOT assume an idea is good because it is technically interesting.
+                4. Technical complexity is not a moat by itself.
+                5. Distribution and customer demand are usually more important than architecture.
+                6. Challenge assumptions aggressively.
+                7. Treat every idea as guilty until proven viable.
+                8. Use tools iteratively.
+
+                Example workflow:
+
+                founder_advantage_analyzer
+                        ↓
+                startup_idea_generator
+                        ↓
+                market_demand_validator
+                        ↓
+                competition_analyzer
+                        ↓
+                founder_fit_analyzer
+                        ↓
+                technical_moat_auditor
+                        ↓
+                business_model_analyzer
+                        ↓
+                distribution_analyzer
+                        ↓
+                venture_scorecard
+
+                9. Never jump directly to a final recommendation without collecting evidence.
+                10. When scores are weak, recommend rejection rather than forcing optimism.
+                11. Prefer painful problems over exciting ideas.
+                12. Prefer businesses that customers already spend money on.
+                13. Favor founder-market fit whenever possible.
+                14. Be skeptical of:
+                    - Generic AI wrappers
+                    - Feature businesses
+                    - Platform-dependent products
+                    - Markets with no identifiable buyers
+                    - Products requiring behavior change
+                15. Explicitly identify:
+                    - Assumptions
+                    - Risks
+                    - Unknowns
+                    - Validation steps
+
+                DECISION FRAMEWORK
+
+                When evaluating opportunities, score:
+
+                - Market Demand
+                - Pain Severity
+                - Urgency
+                - Existing Spend
+                - Founder Fit
+                - Distribution
+                - Competition
+                - Technical Defensibility
+                - Revenue Quality
+                - Capital Efficiency
+
+                Do not over-index on technical moat.
+
+                A company with:
+                - strong demand
+                - strong distribution
+                - moderate technology
+
+                is usually better than:
+
+                - advanced technology
+                - weak demand
+
+                SUCCESS CRITERIA
+
+                A startup opportunity is considered promising when:
+
+                - Customers have a painful problem
+                - Customers have budget
+                - Customers already spend money
+                - Founder has meaningful advantage
+                - Distribution path is plausible
+                - Revenue model is clear
+                - Competition does not eliminate differentiation
+
+                TOOL USAGE
+
+                Use tools as investigative instruments.
+
+                Each tool provides evidence.
+
+                Build conclusions from accumulated evidence.
+
+                Do not generate conclusions first and justify them afterward.
+
+                COMPLETION POLICY
+
+                When sufficient evidence has been collected and analyzed,
+                respond with:
+
+                {{
+                    \"task_completed\": true,
+                    \"final_summary\": {{
+                        \"recommendation\": \"PURSUE | VALIDATE | REJECT\",
+                        \"confidence\": 0.0,
+                        \"venture_score\": 0.0,
+                        \"top_strengths\": [],
+                        \"top_risks\": [],
+                        \"critical_assumptions\": [],
+                        \"next_validation_steps\": []
+                    }}
+                }}
+
+                CLARIFICATION POLICY
+
+                If critical information is missing, respond with:
+
+                {{
+                    \"tool_call\": {{
+                        \"name\": \"null\",
+                        \"arguments\": {{
+                        \"question\": \"specific question here\"
+                        }}
+                    }}
+                }}
+
+                RESPONSE FORMAT
+
+                Always return valid JSON matching:
+
+                {{
+                    \"thought\": \"reasoning and planning\",
+                    \"tool_call\": {{
+                        \"name\": \"tool_name_or_null\",
+                        \"arguments\": {{
+                            \"question\": \"specific question here\",
+                            \"message\": \"specific response here\"
+                        }}
+                    }},
+                    \"task_completed\": false,
+                    \"final_summary\": null
+                }}
+
+                Never return plain text.
+                Never return markdown.
+                Always return valid JSON.",
+                current_project_instructions, current_auto_memory, available_tools_text
+            );
+
             // 5. Query Ollama Endpoint via Chat Completion Payload Matrix
             ui.update_status(&format!(
                 "Turn {} - Awaiting generation token arrays from Ollama...",
@@ -196,7 +518,7 @@ impl AutonomousOrchestrator {
             }
 
             let res = http_client
-                .post(OLLAMA_HOST)
+                .post(&get_ollama_endpoint())
                 .json(&json!({
                     "model": self.model_name,
                     "messages": messages_payload,
@@ -207,6 +529,10 @@ impl AutonomousOrchestrator {
                             "thought": {
                                 "type": "string",
                                 "description": "Step-by-step reasoning details explaining your approach"
+                            },
+                            "message": {
+                                "type": "string",
+                                "description": "an optional direct response/question to the user if not calling a tool"
                             },
                             "tool_call": {
                                 "type": ["object", "null"],
@@ -221,18 +547,14 @@ impl AutonomousOrchestrator {
                         },
                         "required": ["thought", "tool_call", "task_completed", "final_summary"]
                     },
-                    "options": { "temperature": 0.1 }
+                    "options": { 
+                        "temperature": 0.1,
+                        "num_predict": 4096, 
+                        "num_ctx": 16384     
+                    },
                 }))
                 .send()
                 .await?;
-
-            // Track standard simulated metric values across fallback vectors
-            let input_tokens = 4500; // res.usage.input_tokens;
-            let output_tokens = 200; // res.usage.output_tokens;
-            budget.record_usage(input_tokens, output_tokens);
-            budget.print_telemetry_report();
-
-            println!("---------------------- {:?}", res);
 
             if !res.status().is_success() {
                 ui.fail_task(&format!(
@@ -246,6 +568,50 @@ impl AutonomousOrchestrator {
             }
 
             let body_val: Value = res.json().await?;
+            // Check why the model stopped generating
+            let done_reason = body_val
+                .pointer("/done_reason")
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
+
+            // Track standard simulated metric values across fallback vectors
+            let input_tokens = body_val
+                .pointer("/prompt_eval_count")
+                .and_then(|v| v.as_u64())
+                .unwrap_or(0) as usize;
+
+            let output_tokens = body_val
+                .pointer("/eval_count")
+                .and_then(|v| v.as_u64())
+                .unwrap_or(0) as usize;
+            budget.record_usage(input_tokens, output_tokens);
+            budget.print_telemetry_report();
+
+            if done_reason == "length" {
+                println!(
+                    "❌ [WARNING] Model hit the token limit during generation! (done_reason: length)"
+                );
+                ui.update_status("Context limits breached mid-generation. Forcing recovery...");
+
+                // If the input prompt took up almost all the context, a warning won't help.
+                // We need to trigger an emergency compaction or drop history.
+                if input_tokens > 800_000 {
+                    // Nearing the 16k limit
+                    let mut lock = self.session_ctx.lock().await;
+                    lock.history.clear(); // Extreme recovery
+                    budget.reset_token();
+                    lock.append_message("system", "Emergency memory wipe due to context overflow.");
+                } else {
+                    let mut lock = self.session_ctx.lock().await;
+                    lock.append_message(
+                "system", 
+                    "CRITICAL SYSTEM WARNING: Your previous response exceeded the maximum token limit and was forcefully truncated. \
+                    You are over-thinking. Please regenerate your response, keep your 'thought' process extremely brief, and output the required JSON immediately."
+                );
+                }
+                continue;
+            }
+
             let raw_content = match body_val
                 .pointer("/message/content")
                 .and_then(|c| c.as_str())
@@ -262,16 +628,38 @@ impl AutonomousOrchestrator {
             let json_value: Value = match serde_json::from_str(&cleaned_json) {
                 Ok(v) => v,
                 Err(e) => {
-                    println!("error clearning json. error: {:?}", e);
+                    println!(
+                        "❌ Error parsing JSON. error: {:?} \nCleaned JSON: {}\nRaw value: {:?}",
+                        e, cleaned_json, raw_content
+                    );
+
                     let mut lock = self.session_ctx.lock().await;
-                    lock.append_message("assistant", raw_content);
-                    lock.append_message("user", "CRITICAL PARSING ERROR: Response contained invalid JSON syntax characters.");
+                    // Do NOT append the broken raw_content if it's empty or massive garbage
+                    if !raw_content.trim().is_empty() {
+                        lock.append_message("assistant", raw_content);
+                    }
+
+                    // Give the model a strict format reminder instead of a generic error
+                    lock.append_message("user", "CRITICAL PARSING ERROR: Your previous response was not valid JSON. You must return ONLY a raw JSON object matching the requested schema. Do not use markdown formatting blocks if it breaks the JSON.");
                     continue;
                 }
             };
 
+            // let json_value: Value = match serde_json::from_str(&cleaned_json) {
+            //     Ok(v) => v,
+            //     Err(e) => {
+            //         println!(
+            //             "error clearning json. error: {:?} and json {cleaned_json} and the raw value {:?}",
+            //             e, raw_content
+            //         );
+            //         let mut lock = self.session_ctx.lock().await;
+            //         lock.append_message("assistant", raw_content);
+            //         lock.append_message("user", "CRITICAL PARSING ERROR: Response contained invalid JSON syntax characters.");
+            //         continue;
+            //     }
+            // };
+
             // Process native adapter mapping vectors
-            println!(",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,, {:?}", json_value);
             let agent_decision: AgentResponse = if json_value.get("tool_calls").is_some() {
                 // FORMAT A: Standard OpenAI/Ollama tool_calls pattern
                 if let Some(first_call) =
@@ -367,6 +755,10 @@ impl AutonomousOrchestrator {
             }
 
             // 8. Process Requested Tool Execution Blocks
+            println!(
+                "current decision YYYYYYYYYYYYYYYYYYYYYYY {:?}",
+                agent_decision
+            );
             if let Some(tool_call) = agent_decision.tool_call {
                 let normalized_tool_name = tool_call.name.trim().to_lowercase();
                 let conversational_aliases = [
@@ -377,13 +769,57 @@ impl AutonomousOrchestrator {
                 //     || normalized_tool_name == "none"
                 //     || normalized_tool_name.is_empty()
                 // {
+
+                // if normalized_tool_name.is_empty()
+                //     || conversational_aliases.contains(&normalized_tool_name.as_str())
+                // {
+                //     println!(
+                //         "\n🛑 [Orchestrator] Intercepted conversational early exit execution sequence."
+                //     );
+                //     let conversation_content = if let Some(msg) =
+                //         tool_call.arguments.get("message").and_then(|m| m.as_str())
+                //     {
+                //         msg.to_string()
+                //     } else if let Some(txt) =
+                //         tool_call.arguments.get("text").and_then(|t| t.as_str())
+                //     {
+                //         txt.to_string()
+                //     } else if !agent_decision.thought.is_empty() {
+                //         agent_decision.thought.clone()
+                //     } else if let Some(summary) = agent_decision.final_summary.clone() {
+                //         summary
+                //     } else {
+                //         // Fallback fallback if the object is totally empty
+                //         format!(
+                //             "Task processing finished via direct response matrix: {}",
+                //             tool_call.arguments
+                //         )
+                //     };
+
+                //     // Append the assistant's final response to the memory
+                //     let mut lock = self.session_ctx.lock().await;
+                //     // lock.append_message(
+                //     //     "assistant",
+                //     //     &format!("Final Response: {}", conversation_content),
+                //     // );
+                //     lock.append_message("system", &conversation_content);
+
+                //     // Render the text answer clearly to your UI layer
+                //     ui.complete_task(&conversation_content);
+                //     return Ok(()); // Gracefully finish up the execution step
+                // }
+
                 if normalized_tool_name.is_empty()
                     || conversational_aliases.contains(&normalized_tool_name.as_str())
                 {
-                    println!(
-                        "\n🛑 [Orchestrator] Intercepted conversational early exit execution sequence."
-                    );
+                    println!("\n🛑 [Orchestrator] Intercepted conversational interaction.");
+
                     let conversation_content = if let Some(msg) =
+                        tool_call.arguments.get("question").and_then(|m| m.as_str())
+                    // Look for 'question' first
+                    {
+                        msg.to_string()
+                    } else if let Some(msg) =
                         tool_call.arguments.get("message").and_then(|m| m.as_str())
                     {
                         msg.to_string()
@@ -391,29 +827,44 @@ impl AutonomousOrchestrator {
                         tool_call.arguments.get("text").and_then(|t| t.as_str())
                     {
                         txt.to_string()
-                    } else if !agent_decision.thought.is_empty() {
-                        agent_decision.thought.clone()
                     } else if let Some(summary) = agent_decision.final_summary.clone() {
                         summary
+                    } else if !agent_decision.thought.is_empty() {
+                        agent_decision.thought.clone()
                     } else {
-                        // Fallback fallback if the object is totally empty
                         format!(
                             "Task processing finished via direct response matrix: {}",
                             tool_call.arguments
                         )
                     };
 
-                    // Append the assistant's final response to the memory
-                    let mut lock = self.session_ctx.lock().await;
-                    // lock.append_message(
-                    //     "assistant",
-                    //     &format!("Final Response: {}", conversation_content),
-                    // );
-                    lock.append_message("system", &conversation_content);
+                    // Check if the agent is asking a question OR hasn't explicitly completed the task
+                    if tool_call.arguments.get("question").is_some()
+                        || !agent_decision.task_completed
+                    {
+                        // IT IS ASKING A QUESTION - DO NOT EXIT
+                        println!(
+                            "\n🤖 \x1b[1;36m[Agent Question]:\x1b[0m {}",
+                            conversation_content
+                        );
+                        println!("\x1b[1mYour response: \x1b[0m");
+                        let _ = std::io::stdout().flush();
 
-                    // Render the text answer clearly to your UI layer
-                    ui.complete_task(&conversation_content);
-                    return Ok(()); // Gracefully finish up the execution step
+                        let mut input = String::new();
+                        std::io::stdin().read_line(&mut input).unwrap_or_default();
+
+                        let mut lock = self.session_ctx.lock().await;
+                        lock.append_message("assistant", &conversation_content);
+                        lock.append_message("user", input.trim());
+
+                        continue; // Recycle the loop so the agent can use the new information!
+                    } else {
+                        // IT IS ACTUALLY DONE - EXIT GRACEFULLY
+                        let mut lock = self.session_ctx.lock().await;
+                        lock.append_message("system", &conversation_content);
+                        ui.complete_task(&conversation_content);
+                        return Ok(());
+                    }
                 }
 
                 let tool = match self.registry.tools.get(&tool_call.name) {

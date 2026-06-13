@@ -49,38 +49,38 @@ impl Tool for FounderAdvantageAnalyzerTool {
         Ok(format!(
             r#"You are a venture partner evaluating founder-market fit.
 
-Founder Profile:
+            Founder Profile:
 
-Skills:
-{}
+            Skills:
+            {}
 
-Experience:
-{}
+            Experience:
+            {}
 
-Interests:
-{}
+            Interests:
+            {}
 
-Network:
-{}
+            Network:
+            {}
 
-Analyze:
+            Analyze:
 
-1. Unfair advantages.
-2. Weaknesses.
-3. Markets where this founder has leverage.
-4. Markets where this founder should avoid competing.
-5. Areas where technical expertise creates a moat.
-6. Areas where domain expertise is missing.
+            1. Unfair advantages.
+            2. Weaknesses.
+            3. Markets where this founder has leverage.
+            4. Markets where this founder should avoid competing.
+            5. Areas where technical expertise creates a moat.
+            6. Areas where domain expertise is missing.
 
-Return JSON:
+            Return JSON:
 
-{{
-  "advantage_areas": [],
-  "weakness_areas": [],
-  "recommended_markets": [],
-  "anti_markets": [],
-  "founder_fit_summary": ""
-}}"#,
+            {{
+            "advantage_areas": [],
+            "weakness_areas": [],
+            "recommended_markets": [],
+            "anti_markets": [],
+            "founder_fit_summary": ""
+            }}"#,
             skills, experience, interests, network
         ))
     }
