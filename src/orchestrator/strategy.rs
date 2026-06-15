@@ -3,7 +3,6 @@ use crate::orchestrator::autonomous::AutonomousOrchestrator;
 use crate::orchestrator::controller::AgentPromptController;
 use crate::orchestrator::ui::{TerminalUI, UIStage};
 use crate::state::session::SessionContext;
-use crate::tools::code_chain::CodeGenerationChainTool;
 use crate::tools::registry::ToolRegistry;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -21,6 +20,8 @@ pub struct CoreEngineRunner {
     pub api_key: String,
     pub compilation_cmd: String,
     pub test_cmd: Option<String>,
+    pub model_name: String,
+    pub model_uri: String,
 }
 
 impl CoreEngineRunner {
@@ -29,12 +30,16 @@ impl CoreEngineRunner {
         api_key: String,
         compilation_cmd: String,
         test_cmd: Option<String>,
+        model_name: String,
+        model_uri: String,
     ) -> Self {
         Self {
             project_root,
             api_key,
             compilation_cmd,
             test_cmd,
+            model_name,
+            model_uri,
         }
     }
 
@@ -53,10 +58,13 @@ impl CoreEngineRunner {
         let permission_gate = PermissionGate::new(permission_mode);
 
         // 2. Populate capabilities framework registry
-        let mut registry = ToolRegistry::new(&self.project_root);
-        registry.register(CodeGenerationChainTool {
-            session_ctx: shared_session.clone(),
-        });
+        let registry = ToolRegistry::new(
+            &self.project_root,
+            shared_session.clone(),
+            self.model_uri.clone(),
+            self.model_name.clone(),
+        );
+
         let shared_registry = Arc::new(registry);
 
         // 3. Match and route based on specified workflow tactics
@@ -71,7 +79,8 @@ impl CoreEngineRunner {
                 let orchestrator = AutonomousOrchestrator::new(
                     shared_session.clone(),
                     shared_registry.clone(),
-                    "gemma4:e4b".to_string(),
+                    self.model_name.clone(),
+                    self.model_uri.clone(),
                 );
 
                 // Transfer control over to the ReAct execution matrix
@@ -90,6 +99,7 @@ impl CoreEngineRunner {
                     shared_session,
                     shared_registry,
                     self.api_key.clone(),
+                    self.model_name.clone(),
                 );
 
                 controller

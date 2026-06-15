@@ -1,9 +1,6 @@
 use crate::state::session::Message;
 use serde_json::json;
 
-const OLLAMA_HOST: &str = "http://localhost:11434/api/chat";
-const MODEL_NAME: &str = "gemma4:e4b";
-
 pub fn apply_snip_shaper(
     history: &[Message],
     max_history: usize,
@@ -41,7 +38,7 @@ pub fn apply_snip_shaper(
     compacted
 }
 
-pub fn apply_snip_shaper_compaction(
+pub fn _apply_snip_shaper_compaction(
     history: &mut Vec<Message>,
     max_len: usize,
     preserve_recent: usize,
@@ -73,6 +70,8 @@ pub fn apply_snip_shaper_compaction(
 pub async fn apply_generative_auto_compact(
     history: &[Message],
     threshold: usize,
+    model_uri: &str,
+    model_name: &str,
 ) -> Result<Vec<Message>, Box<dyn std::error::Error>> {
     if history.len() < threshold {
         return Ok(history.to_vec());
@@ -95,7 +94,7 @@ pub async fn apply_generative_auto_compact(
     );
 
     let payload = json!({
-        "model": MODEL_NAME,
+        "model": model_name,
         "messages": [
             { "role": "user", "content": distillation_prompt }
         ],
@@ -103,7 +102,7 @@ pub async fn apply_generative_auto_compact(
         "options": { "temperature": 0.7 }
     });
 
-    let res = client.post(OLLAMA_HOST).json(&payload).send().await?;
+    let res = client.post(model_uri).json(&payload).send().await?;
 
     if !res.status().is_success() {
         return Err("Compaction call to backend model failed".into());
@@ -124,25 +123,6 @@ pub async fn apply_generative_auto_compact(
     let mut new_history = system_anchor;
     new_history.push(compact_boundary);
     Ok(new_history)
-}
-
-pub async fn apply_auto_compact(
-    history: &[Message],
-    max_threshold: usize,
-) -> Result<Vec<Message>, Box<dyn std::error::Error>> {
-    // Generative memory synthesis fallback hook
-    // If the transaction stack size is safe, keep it completely unreduced
-    if history.len() <= max_threshold {
-        return Ok(history.to_vec());
-    }
-
-    println!(
-        "✂️  [Compaction]: Context budget exceeded threshold. Activating historical window compression..."
-    );
-
-    // In a full production scale, you would pass middle turns to Ollama to summarize them.
-    // For now, we delegate directly to our fast snip shaper bounds below.
-    Ok(history.to_vec())
 }
 
 #[tokio::test]

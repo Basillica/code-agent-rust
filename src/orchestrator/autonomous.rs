@@ -17,12 +17,6 @@ use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::Mutex;
 
-// const OLLAMA_HOST: &str = "http://127.0.0.1:11434/api/chat";
-fn get_ollama_endpoint() -> String {
-    std::env::var("OLLAMA_HOST_OVERRIDE")
-        .unwrap_or_else(|_| "http://127.0.0.1:11434/api/chat".to_string())
-}
-
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct AgentToolCall {
     pub name: String,
@@ -41,6 +35,7 @@ pub struct AutonomousOrchestrator {
     session_ctx: Arc<Mutex<SessionContext>>,
     registry: Arc<ToolRegistry>,
     model_name: String,
+    model_uri: String,
     max_steps: usize,
 }
 
@@ -49,11 +44,13 @@ impl AutonomousOrchestrator {
         session_ctx: Arc<Mutex<SessionContext>>,
         registry: Arc<ToolRegistry>,
         model_name: String,
+        model_uri: String,
     ) -> Self {
         Self {
             session_ctx,
             registry,
             model_name,
+            model_uri,
             max_steps: 50, // Reconciled match with your max_turns safety cap
         }
     }
@@ -122,7 +119,13 @@ impl AutonomousOrchestrator {
             // 2. Pre-Model Shaper Layer: Compact session history space dynamically
             {
                 let mut lock = self.session_ctx.lock().await;
-                lock.history = apply_generative_auto_compact(&lock.history, 15).await?;
+                lock.history = apply_generative_auto_compact(
+                    &lock.history,
+                    15,
+                    &self.model_uri,
+                    &self.model_name,
+                )
+                .await?;
             }
 
             // 3. Scan workspace structure dynamically to construct structural code topologies
@@ -518,7 +521,7 @@ impl AutonomousOrchestrator {
             }
 
             let res = http_client
-                .post(&get_ollama_endpoint())
+                .post(&self.model_uri)
                 .json(&json!({
                     "model": self.model_name,
                     "messages": messages_payload,
@@ -755,10 +758,6 @@ impl AutonomousOrchestrator {
             }
 
             // 8. Process Requested Tool Execution Blocks
-            println!(
-                "current decision YYYYYYYYYYYYYYYYYYYYYYY {:?}",
-                agent_decision
-            );
             if let Some(tool_call) = agent_decision.tool_call {
                 let normalized_tool_name = tool_call.name.trim().to_lowercase();
                 let conversational_aliases = [
@@ -842,11 +841,42 @@ impl AutonomousOrchestrator {
                     if tool_call.arguments.get("question").is_some()
                         || !agent_decision.task_completed
                     {
-                        // IT IS ASKING A QUESTION - DO NOT EXIT
                         println!(
                             "\n🤖 \x1b[1;36m[Agent Question]:\x1b[0m {}",
                             conversation_content
                         );
+
+                        // Construct arguments programmatically for our assumption generator
+                        let oracle_args = json!({
+                            "blocking_question": conversation_content, // or agent_response.message
+                            "target_tool_context": "General Loop Block"
+                        });
+
+                        // Execute the oracle tool directly to force context resolution
+                        if let Some(tool) =
+                            self.registry.tools.get("strategic_assumption_generator")
+                        {
+                            match tool.execute(&oracle_args).await {
+                                Ok(response) => {
+                                    let mut lock = self.session_ctx.lock().await;
+                                    lock.append_message(
+                                        "system",
+                                        &format!(
+                                            "Observation from 'strategic_assumption_generator':\n{}", response.trim(),
+                                        ),
+                                    );
+                                    // lock.append_message("assistant", &conversation_content);
+                                    // lock.append_message("user", &formatted_payload.trim());
+
+                                    continue;
+                                }
+                                Err(e) => {
+                                    ui.log_message("strategic_assumption_generator", &e);
+                                    continue;
+                                }
+                            }
+                        }
+
                         println!("\x1b[1mYour response: \x1b[0m");
                         let _ = std::io::stdout().flush();
 

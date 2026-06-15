@@ -98,6 +98,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         api_key,
         args.compile_cmd,
         args.test_cmd,
+        "gemma4:e4b".to_string(),
+        "http://127.0.0.1:11434/api/chat".to_string(),
     );
 
     println!("🚀 Launching operational strategy dispatcher...");

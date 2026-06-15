@@ -8,8 +8,6 @@ use serde_json::json;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
-const MODEL_NAME: &str = "gemma4:e4b";
-
 pub struct AgentPromptController {
     session_ctx: Arc<Mutex<SessionContext>>,
     registry: Arc<ToolRegistry>,
@@ -24,13 +22,14 @@ impl AgentPromptController {
         session_ctx: Arc<Mutex<SessionContext>>,
         registry: Arc<ToolRegistry>,
         api_key: String,
+        model_name: String,
     ) -> Self {
         Self {
             session_ctx,
             registry,
             max_repair_attempts: 3,
             api_key,
-            model_name: MODEL_NAME.to_string(), // Easily switchable to any specialized frontier model
+            model_name: model_name, // Easily switchable to any specialized frontier model
             indexer: Arc::new(Mutex::new(CodebaseIndexer::new())),
         }
     }

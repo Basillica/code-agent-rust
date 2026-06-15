@@ -1,3 +1,4 @@
+use crate::state::session::SessionContext;
 use crate::tools::bash::BashTool;
 use crate::tools::bootstrap::BootstrapProjectTool;
 use crate::tools::browser::WebBrowserTool;
@@ -21,13 +22,20 @@ use crate::tools::write_file::WriteFileTool;
 use crate::tools::{Tool, code_chain};
 use std::collections::HashMap;
 use std::path::PathBuf;
+use std::sync::Arc;
+use tokio::sync::Mutex;
 
 pub struct ToolRegistry {
     pub tools: HashMap<String, Box<dyn Tool>>,
 }
 
 impl ToolRegistry {
-    pub fn new(project_root: &PathBuf) -> Self {
+    pub fn new(
+        project_root: &PathBuf,
+        session_ctx: Arc<Mutex<SessionContext>>,
+        model_name: String,
+        model_uri: String,
+    ) -> Self {
         let mut registry = Self {
             tools: HashMap::new(),
         };
@@ -45,7 +53,7 @@ impl ToolRegistry {
         registry.register(CodebaseSearchTool::new(project_root.to_path_buf()));
         registry.register(CalculatorTool::new());
         registry.register(WeatherTool);
-        registry.register(code_chain::CodeGenerationChainTool::new());
+        registry.register(code_chain::CodeGenerationChainTool::new(session_ctx));
         registry.register(BootstrapProjectTool::new(project_root.to_path_buf()));
         registry.register(ExecuteCommandTool::new(project_root.to_path_buf()));
         registry.register(SearchGrepTool);
@@ -59,6 +67,11 @@ impl ToolRegistry {
         registry.register(business::startup_idea_generator::StartupIdeaGeneratorTool);
         registry.register(business::technical_moat_editor::TechnicalMoatAuditorTool);
         registry.register(business::venture_score_card::VentureScorecardTool);
+        registry.register(
+            business::strategic_assumption::StrategicAssumptionGeneratorTool::new(
+                model_uri, model_name,
+            ),
+        );
 
         registry
     }

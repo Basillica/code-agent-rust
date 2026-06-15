@@ -26,7 +26,6 @@ impl ModelCostConfigBuilder {
         Self::default()
     }
 
-    /// Sets the model target name identifier (e.g., "gemma4:e4b", "claude-3-5-sonnet")
     pub fn name(mut self, name: impl Into<String>) -> Self {
         self.name = Some(name.into());
         self

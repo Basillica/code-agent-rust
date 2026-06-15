@@ -14,18 +14,32 @@ mod tests {
     use wiremock::{Mock, MockServer, ResponseTemplate};
 
     /// Helper to instantiate a clean registry and orchestrator for testing
-    fn setup_test_orchestrator() -> (AutonomousOrchestrator, Arc<Mutex<SessionContext>>) {
+    async fn setup_test_orchestrator() -> (
+        AutonomousOrchestrator,
+        Arc<Mutex<SessionContext>>,
+        MockServer,
+    ) {
+        let mock_server = MockServer::start().await;
         let path = PathBuf::from("test");
         let session_ctx = Arc::new(Mutex::new(SessionContext::new(&path)));
-        let registry = ToolRegistry::new(&path);
+        let model_name = "gemma4:e4b".to_string();
+        let model_uri = format!("{}/api/chat", mock_server.uri());
+
+        let registry = ToolRegistry::new(
+            &path,
+            session_ctx.clone(),
+            model_name.clone(),
+            model_uri.clone(),
+        );
 
         let orchestrator = AutonomousOrchestrator::new(
             session_ctx.clone(),
             Arc::new(registry),
-            "gemma4:e4b".to_string(),
+            model_name,
+            model_uri,
         );
 
-        (orchestrator, session_ctx)
+        (orchestrator, session_ctx, mock_server)
     }
 
     /// Helper to wrap your AgentResponse format inside the Ollama chat response structure
@@ -70,8 +84,7 @@ mod tests {
     #[serial]
     async fn test_handle_conversational_pivot_null_tool() {
         // Scenario: The model reaches a state where it asks for user input ("null" tool/None)
-        let mock_server = MockServer::start().await;
-        let (orchestrator, _ctx) = setup_test_orchestrator();
+        let (orchestrator, _ctx, mock_server) = setup_test_orchestrator().await;
 
         // Feed an agent response that wants to stop and ask a question
         Mock::given(method("POST"))
@@ -97,11 +110,7 @@ mod tests {
     #[tokio::test]
     #[serial]
     async fn test_handle_valid_tool_execution() {
-        // Scenario: Model returns a valid tool signature. Ensure it executes and advances loop.
-        let mock_server = MockServer::start().await;
-
-        let (orchestrator, ctx) = setup_test_orchestrator();
-
+        let (orchestrator, ctx, mock_server) = setup_test_orchestrator().await;
         // Turn 1: Model requests competition analyzer
         Mock::given(method("POST"))
             .and(path("/api/chat"))
@@ -135,9 +144,7 @@ mod tests {
     #[serial]
     async fn test_handle_malformed_tool_arguments() {
         // Scenario: Model attempts to run a tool but omits required parameters
-        let mock_server = MockServer::start().await;
-
-        let (orchestrator, ctx) = setup_test_orchestrator();
+        let (orchestrator, ctx, mock_server) = setup_test_orchestrator().await;
 
         // 'business_model_analyzer' requires BOTH "idea" and "customer" fields
         // We purposefully pass an empty arguments payload to trick it
@@ -173,8 +180,7 @@ mod tests {
     #[serial]
     async fn test_handle_hallucinated_unknown_tool() {
         // Scenario: Model hallucinates a tool that isn't registered in your registry inventory
-        let mock_server = MockServer::start().await;
-        let (orchestrator, ctx) = setup_test_orchestrator();
+        let (orchestrator, ctx, mock_server) = setup_test_orchestrator().await;
 
         Mock::given(method("POST"))
             .and(path("/api/chat"))
@@ -195,6 +201,8 @@ mod tests {
 
         // Ensure the system message lets the model know the utility doesn't exist
         let context = ctx.lock().await;
+        println!("the frigging context: {:?}", context.history);
+
         assert!(context.history.iter().any(|m| {
             m.role == "system"
                 && m.content
@@ -206,8 +214,7 @@ mod tests {
     #[serial]
     async fn test_handle_task_completion_exit() {
         // Scenario: The model signals that the entire goal objective has been met
-        let mock_server = MockServer::start().await;
-        let (orchestrator, _ctx) = setup_test_orchestrator();
+        let (orchestrator, ctx, mock_server) = setup_test_orchestrator().await;
 
         Mock::given(method("POST"))
             .and(path("/api/chat"))
@@ -233,8 +240,7 @@ mod tests {
     #[serial]
     async fn test_handle_corrupted_raw_json_fallback() {
         // Scenario: The LLM outputs corrupted json formatting text that can't be safely cleaned
-        let mock_server = MockServer::start().await;
-        let (orchestrator, _ctx) = setup_test_orchestrator();
+        let (orchestrator, ctx, mock_server) = setup_test_orchestrator().await;
 
         // Corrupted JSON payload missing brackets completely
         let corrupted_payload = ResponseTemplate::new(200).set_body_json(json!({

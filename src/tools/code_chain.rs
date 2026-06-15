@@ -13,10 +13,8 @@ pub struct CodeGenerationChainTool {
 }
 
 impl CodeGenerationChainTool {
-    pub fn new() -> Self {
-        Self {
-            session_ctx: Arc::new(Mutex::new(SessionContext::new("project_root"))),
-        }
+    pub fn new(session_ctx: Arc<Mutex<SessionContext>>) -> Self {
+        Self { session_ctx }
     }
 }
 

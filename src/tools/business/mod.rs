@@ -4,5 +4,6 @@ pub mod distribution_analyzer;
 pub mod founder_analyzer;
 pub mod market_demand_validator;
 pub mod startup_idea_generator;
+pub mod strategic_assumption;
 pub mod technical_moat_editor;
 pub mod venture_score_card;
